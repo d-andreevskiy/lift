@@ -1,5 +1,31 @@
 /*
 
+> Виталий Мореходов:
+Входы 
+1- A0  = автомат вниз
+2 - А1 = автомат вверх
+3 - A2 = Ручной режим вниз
+4 - А3 = Ручной режим вверх
+5 - А4 = Концевой
+6 - А5 = Датчик нагрузки (Токовый датчик)
+7 - А6 = Экран вниз
+8 - А7 = Экран вверх  
+9 - D2 = Работает только экран 
+10 - D3 = Работает только лифт
+11 - D4 = Резерв
+12 - D5 = Резерв
+
+Выходы
+D - 6 = Реле питания. (Бок питания 24 вольта + розетка проектора)
+D - 7 = Экран вниз
+D - 8 = Экран вверх
+D - 9 = Экран стоп
+D - 10 = Драйвер "Enable"
+D - 11 =Драйвер "CW"
+D - 12 =Драйвер "CLK"
+D - 13 = Резерв
+
+
 1- A0  = автомат вниз 
 При коротком и длинном нажатии 
 Проверяет состояния входов "9 - D2 = Работает только экран  и 10 - D3 = Работает только лифт"
@@ -51,6 +77,23 @@ D - 8 = Экран вверх
 D - 8 = Экран вверх)
 Во всех остальных вариантах В ручном режиме работает только проектор.
 */
+
+
+#define EN 10
+#define CW 11
+#define CLK 12
+#define POW 6
+
+
+#define GS_FAST_PROFILE 10
+#include "stepper.h"
+
+#define GS_NO_ACCEL 1
+//GStepper2<STEPPER4WIRE> stepper(2048, 5, 3, 4, 2);
+GStepper2 stepper(2048, CLK, CW);
+
+uint32_t tar = -20000;
+bool dir =1;
 
 
 enum lift_states { 
@@ -112,13 +155,34 @@ enum lift_events get_new_event (void)
 
 
 void setup() {
-  // put your setup code here, to run once:
+  pinMode(POW, OUTPUT);
+  digitalWrite(POW, HIGH);
 
+  stepper.enable();
+  stepper.setMaxSpeed(3000);     // скорость движения к цели
+  stepper.setAcceleration(10000); // ускорение
+  stepper.setTarget(tar);       // цель
 }
+
 
 void loop() {
   // put your main code here, to run repeatedly:
+
+  while (1) {
     new_event = get_new_event (); /* get the next event to process */
+    
+    stepper.tick();
+
+    // если приехали
+    if (stepper.ready()) {
+      dir = !dir;
+      stepper.setTarget(dir * tar);
+      stepper.power(false);
+      delay(10000);
+      stepper.power(true);
+
+    }
+
 
     if (((new_event >= 0) && (new_event < MAX_EVENTS))
     && ((current_state >= 0) && (current_state < MAX_STATES))) {
@@ -126,4 +190,5 @@ void loop() {
         state_table [current_state][new_event] (); /* call the action procedure */
 
     }
+  }
 }
