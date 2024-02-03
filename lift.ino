@@ -82,17 +82,23 @@ D - 8 = Экран вверх)
 #define EN 10
 #define CW 11
 #define CLK 12
-#define POW 6
+#define POW_ 6
+#define LSW 4 // Концевой
 
 
-#define GS_FAST_PROFILE 10
-#include "stepper.h"
+
+// #define GS_FAST_PROFILE 10
 
 #define GS_NO_ACCEL 1
-//GStepper2<STEPPER4WIRE> stepper(2048, 5, 3, 4, 2);
-GStepper2 stepper(2048, CLK, CW);
 
-uint32_t tar = -20000;
+
+#include "lift.h"
+ #include "stepper.h"
+
+Lift<STEPPER2WIRE> stepper(LSW, 2048, CLK, CW, EN);
+
+// GStepper2<STEPPER2WIRE> stepper(2048, CLK, CW,EN);
+// uint32_t tar = 120000L;
 bool dir =1;
 
 
@@ -114,82 +120,81 @@ void lift_stop (void);
 void none(void){};
 
 
-enum lift_events { 
-              EV_LIFT_DOWN, 
-              EV_LIFT_ST_DOWN,
-              EV_LIFT_UP,
-              EV_LIFT_ST_UP,
-              EV_LIMIT_SW,
-              EV_STEP_OVER,
-              MAX_EVENTS,
-              } new_event;
-
-
-
-enum lift_events get_new_event (void);
-
-
-void (*const state_table [MAX_STATES][MAX_EVENTS]) (void) = {
-//             EV_LIFT_DOWN, EV_LIFT_ST_DOWN, EV_LIFT_UP, EV_LIFT_ST_UP, EV_LIMIT_SW, EV_STEP_OVER,
-/*STOP_DOWN*/{ none,         none,            lift_up,    lift_step_up,  none,        none  },
-/*STOP_UP*/  { lift_down,    lift_step_down,  none,       none,          none,        none  },
-/*DOWN*/     { none,         none,            none,       none,          none,        lift_stop },
-/*ST_DOWN*/  { none,         none,            none,       none,          none,        lift_stop },
-/*UP*/       { none,         none,            none,       none,          lift_stop,   none },
-/*ST_UP*/    { none,         none,            none,       none,          lift_stop,   none },
-    
-};
-
-
-
-void lift_step_down (void){};
-void lift_step_up (void){};
-void lift_down (void){} ;
-void lift_up (void){};
-void lift_stop (void){};
-
-enum lift_events get_new_event (void)
-{
-    return EV_LIFT_DOWN;
-}
 
 
 void setup() {
-  pinMode(POW, OUTPUT);
-  digitalWrite(POW, HIGH);
+  pinMode(POW_, OUTPUT);
+  digitalWrite(POW_, HIGH);
 
-  stepper.enable();
   stepper.setMaxSpeed(3000);     // скорость движения к цели
   stepper.setAcceleration(10000); // ускорение
-  stepper.setTarget(tar);       // цель
+  stepper.setTarget(-120000L);       // цель
+  // stepper.setSpeed(-10);
+  stepper.invertEn(true);
+  stepper.enable(); 
+  Serial.begin(9600);
+
 }
 
 
 void loop() {
   // put your main code here, to run repeatedly:
 
+  uint32_t btnTimer = 0;
+    boolean flag=false;
+
+  uint8_t i =0;
+
+
+
   while (1) {
-    new_event = get_new_event (); /* get the next event to process */
     
-    stepper.tick();
-
-    // если приехали
-    if (stepper.ready()) {
-      dir = !dir;
-      stepper.setTarget(dir * tar);
-      stepper.power(false);
-      delay(10000);
-      stepper.power(true);
-
-    }
+    bool f = stepper.tick();
 
 
-    if (((new_event >= 0) && (new_event < MAX_EVENTS))
-    && ((current_state >= 0) && (current_state < MAX_STATES))) {
+//   if ( !flag) {
+//     flag=true;
+//     btnTimer = millis();
+//  }
 
-        state_table [current_state][new_event] (); /* call the action procedure */
 
-    }
+
+#define IF_A( x, f,  func ) do { \
+ if( !f && x < 200) { \
+  func; \
+  } \
+} while (0) 
+
+      int r = analogRead(i);
+      switch (i) {
+        //
+
+        case 0:
+          IF_A(r, f, stepper.up());
+          break;
+        case 1: 
+          IF_A(r, f,  stepper.down());
+          break;
+      }
+
+      i++;
+      if (i >7) i=0;
+
+
+
+// 1- A0  = автомат вниз
+// 2 - А1 = автомат вверх
+// 3 - A2 = Ручной режим вниз
+// 4 - А3 = Ручной режим вверх
+// 5 - А4 = Концевой
+// 6 - А5 = Датчик нагрузки (Токовый датчик)
+// 7 - А6 = Экран вниз
+// 8 - А7 = Экран вверх  
+
+ 
+
+
+
   }
 }
 
